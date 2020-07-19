@@ -2,8 +2,10 @@ const fs = require("fs");
 const net = require("net");
 
 process.stdin.on("readable", () => {
-  let input = process.stdin.read();
-  client.write("New User Message: " + input.toString().trim());
+  let input;
+  while((input = process.stdin.read()) !== null) {
+    if(input) client.write(input.toString().trim());
+  }
 });
 
 const client = net.createConnection({ port: 3000 }, () => {
@@ -15,7 +17,7 @@ client.on("error", (err) => {
 });
 
 client.on("data", (response) => {
-  console.log("Message from server: " + response.toString().trim());
+  console.log("# " + response.toString().trim());
 });
 
 client.on("end", () => console.log("ending session"));
