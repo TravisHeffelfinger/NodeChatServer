@@ -1,79 +1,87 @@
 const fs = require("fs");
 const net = require("net");
+const date = new Date().toISOString()
+let connections = 1;
+let numberOfUsers = 0;
+
+console.clear()
 
 process.stdin.setEncoding("utf8");
 
-let chatLog = fs.createWriteStream('./chat-log.txt')
+const chatLog = fs.createWriteStream('./chat-log.txt')
 
 let connectedUsers = [];
-
-function getOtherClients(socket) {
-  return connectedUsers.filter(index => { if (index !== socket && index !== null) return index });
-}
-
-function getCurrentClient(socket, ending) {
-  if (ending) sendMessage(socket, clientDisconnect(socket));
-  return connectedUsers.indexOf(socket) + 1
-}
-
-function sendMessage(socket, userMessage) {
-  let output = `User${getCurrentClient(socket)}: ${userMessage.toString().trim()}`
-  console.log(output);
-  if (connectedUsers.length > 1) {
-    let currentUsers = getOtherClients(socket)
-    currentUsers.map((user) => user.write(output))
-    chatLog.write(output)
-  } else {
-    chatLog.write(output)
+class Client {
+  constructor(name, id, socket) {
+    this.name = name;
+    this.id = id;
+    this.socket = socket;
   }
 }
 
-function updateClientCount() {
-  let count = 0;
-  connectedUsers.filter(index => {
-    if (index !== null) {
-      count++
+function idGenerator() {
+  return Math.floor(Math.random() * 1000000);
+}
+
+function getOtherClients(client) {
+  return connectedUsers.filter(clients => { if (clients !== client) return clients });
+}
+
+function sendMessage(client, userMessage) {
+  let output = `>${client.name}: ${userMessage}`
+  console.log(output);
+  if (connectedUsers.length > 1) {
+    let otherUsers = getOtherClients(client)
+    otherUsers.map((user) => user.socket.write(output))
+    chatLog.write(output + date + '\n')
+  } else {
+    chatLog.write(output + date + '\n')
+  }
+}
+
+function broadcast(message) {
+  connectedUsers.map(user => user.socket.write(`<---${message}--->`))
+}
+async function numberOfConnections(){
+   await server.getConnections((err, count) => {
+    if(err) {
+      console.log(err)
     } else {
-      count--
+      connections = count + 1;
     }
   })
-  return count;
+  
 }
 
-function clientDisconnect(sock) {
-  let index = getCurrentClient(sock);
-  console.log('before ', connectedUsers.length)
-  connectedUsers.filter((user) => {
-    if (user === sock) {
-      user.destroy(err => {
-        console.log(err)
-      })
-      user = null;
-      console.log(connectedUsers.length)
-    }
-  });
-  updateClientCount();
-  return `has disconnected`
-
-}
 const server = net.createServer((socket) => {
-  socket.write("Welcome to the server!");
-  connectedUsers.push(socket);
-  console.log(`${updateClientCount()} users currently connected`);
-  chatLog.write(`User${getCurrentClient(socket)} connected.`)
+  numberOfUsers++;
+  numberOfConnections();
+  let currentClient = new Client(`Guest${numberOfUsers}`, idGenerator() ,socket);
+  connectedUsers.push(currentClient);
+  console.log(`${connections} users currently connected`);
+  broadcast(`Welcome to the server ${currentClient.name}!`);
+  chatLog.write(`${currentClient.name} connected. ${date}\n`)
 
   socket.on("end", () => {
-    socket.end(console.log(`User${getCurrentClient(socket, true)} disconnected.`))
+    connectedUsers.filter((user, index) => {
+      if(user.id === currentClient.id) connectedUsers.splice(index, 1)
+    });
+    broadcast(`${currentClient.name} has disconnected`)
+    numberOfConnections();
   });
 
   socket.on("error", (err) => {
     console.log(err);
   });
   socket.on("data", (input) => {
-    sendMessage(socket, input);
+    sendMessage(currentClient, input.toString().trim());
   });
 });
 
+server.on('close', () => {
+  chatLog.write(`'Server shutdown ${date}\n`);
+})
+
 server.listen(3000, () => {
-  console.log('server is up');
+  console.log('server is listening on port 3000');
 });

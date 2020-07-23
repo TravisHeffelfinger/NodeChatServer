@@ -1,5 +1,6 @@
 const fs = require("fs");
 const net = require("net");
+console.clear();
 
 process.stdin.on("readable", () => {
   let input;
@@ -17,7 +18,10 @@ client.on("error", (err) => {
 });
 
 client.on("data", (response) => {
-  console.log("# " + response.toString().trim());
+  console.log(response.toString().trim());
 });
 
-client.on("end", () => console.log("ending session"));
+client.on("end", () => {
+  console.log("Server shut down ending session");
+  process.exit();
+});
